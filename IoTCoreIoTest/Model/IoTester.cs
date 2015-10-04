@@ -15,6 +15,13 @@ namespace IoTCoreIoTest.Model
     [Notify]
     public class IoTester : INotifyPropertyChanged, IDisposable
     {
+        public enum TransferMethod
+        {
+            Write,
+            TransferFullDuplex,
+            TransferSequential,
+        }
+
         private SpiDevice device;
         private Task initializationTask;
         private Task communicationTask;
@@ -27,7 +34,9 @@ namespace IoTCoreIoTest.Model
 
         public bool IsInitialized { get { return isInitialized; } set { SetProperty(ref isInitialized, value, isInitializedPropertyChangedEventArgs); } }
 
-        public double LastTransmissionRate { get { return lastTransmissionRate; } private set { SetProperty(ref lastTransmissionRate, value, lastTransmissionRatePropertyChangedEventArgs); } }
+        public double LastTransmissionRate { get { return lastTransmissionRate; } set { SetProperty(ref lastTransmissionRate, value, lastTransmissionRatePropertyChangedEventArgs); } }
+
+        public TransferMethod Method { get { return method; } set { SetProperty(ref method, value, methodPropertyChangedEventArgs); } }
 
         public IoTester()
         {
@@ -73,9 +82,20 @@ namespace IoTCoreIoTest.Model
                 while (true)
                 {
                     this.communicationCancel.Token.ThrowIfCancellationRequested();
-                    
+                    var transferMethod = this.Method;
                     stopwatch.Restart();
-                    this.device.TransferFullDuplex(data, data);
+                    switch (transferMethod)
+                    {
+                        case TransferMethod.Write:
+                            this.device.Write(data);
+                            break;
+                        case TransferMethod.TransferFullDuplex:
+                            this.device.TransferFullDuplex(data, data);
+                            break;
+                        case TransferMethod.TransferSequential:
+                            this.device.TransferSequential(data, data);
+                            break;
+                    }
                     stopwatch.Stop();
                     var totalSeconds = stopwatch.Elapsed.TotalSeconds;
                     this.LastTransmissionRate = totalSeconds > 0 ? data.Length / totalSeconds : 0;
@@ -117,6 +137,8 @@ namespace IoTCoreIoTest.Model
         private static readonly PropertyChangedEventArgs isInitializedPropertyChangedEventArgs = new PropertyChangedEventArgs(nameof(IsInitialized));
         private double lastTransmissionRate;
         private static readonly PropertyChangedEventArgs lastTransmissionRatePropertyChangedEventArgs = new PropertyChangedEventArgs(nameof(LastTransmissionRate));
+        private TransferMethod method;
+        private static readonly PropertyChangedEventArgs methodPropertyChangedEventArgs = new PropertyChangedEventArgs(nameof(Method));
 
         private void SetProperty<T>(ref T field, T value, PropertyChangedEventArgs ev)
         {
