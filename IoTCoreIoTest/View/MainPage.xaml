@@ -23,13 +23,20 @@
 
         <TextBlock Grid.Row="0" Grid.Column="0">IsInitialized:</TextBlock>
         <TextBlock Grid.Row="0" Grid.Column="1" Text="{x:Bind ViewModel.IsInitialized.Value}"/>
-        <TextBlock Grid.Row="1" Grid.Column="0">LastTransmissionRate:</TextBlock>
-        <TextBlock Grid.Row="1" Grid.Column="1" Text="{x:Bind ViewModel.LastTransmissionRate.Value, Mode=OneWay}"/>
 
-        <Button Grid.Row="2" Grid.Column="0" Command="{x:Bind ViewModel.StopCommunicationCommand}">Stop</Button>
-        <ComboBox Grid.Row="2" Grid.Column="1"
+        <ComboBox Grid.Row="1" Grid.Column="0"
                   ItemsSource="{x:Bind ViewModel.TransferMethods}"
                   SelectedItem="{Binding ElementName=Page,Path=ViewModel.TransferMethod.Value, Mode=TwoWay}"/>
-        <TextBlock Grid.Row="3" Grid.Column="1" Text="{x:Bind ViewModel.TransferMethod.Value, Mode=OneWay}"/>
+
+        <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal">
+            <Button Margin="2,2" Command="{x:Bind ViewModel.StartCommunicationCommand}">Start</Button>
+            <Button Margin="2,2" Command="{x:Bind ViewModel.StopCommunicationCommand}">Stop</Button>
+        </StackPanel>
+
+        <TextBlock Grid.Row="2" Grid.Column="0">LastTransmissionRate:</TextBlock>
+        <TextBlock Grid.Row="2" Grid.Column="1" Text="{x:Bind ViewModel.LastTransmissionRate.Value, Mode=OneWay}"/>
+
+        <TextBlock Grid.Row="3" Grid.Column="0">AverageTransmissionRate:</TextBlock>
+        <TextBlock Grid.Row="3" Grid.Column="1" Text="{x:Bind ViewModel.AverageTransmissionRate.Value, Mode=OneWay}"/>
     </Grid>
 </Page>

@@ -22,28 +22,36 @@ namespace IoTCoreIoTest.Model
             TransferSequential,
         }
 
+        public enum IoTesterStatus
+        {
+            Initializing,
+            Idle,
+            Running,
+        }
+
         private SpiDevice device;
         private Task initializationTask;
         private Task communicationTask;
         private CancellationTokenSource communicationCancel;
 
-        private ConcurrentQueue<byte[]> transmissionQueue;
-
         [NonNotify]
         public bool IsSupported { get; } = Windows.Foundation.Metadata.ApiInformation.IsTypePresent(typeof(Windows.Devices.Gpio.GpioPin).FullName);
-
-        public bool IsInitialized { get { return isInitialized; } set { SetProperty(ref isInitialized, value, isInitializedPropertyChangedEventArgs); } }
 
         public double LastTransmissionRate { get { return lastTransmissionRate; } set { SetProperty(ref lastTransmissionRate, value, lastTransmissionRatePropertyChangedEventArgs); } }
 
         public TransferMethod Method { get { return method; } set { SetProperty(ref method, value, methodPropertyChangedEventArgs); } }
 
+        public int NumberOfTransfers { get { return numberOfTransfers; } set { SetProperty(ref numberOfTransfers, value, numberOfTransfersPropertyChangedEventArgs); } }
+
+        public IoTesterStatus Status { get { return status; } set { SetProperty(ref status, value, statusPropertyChangedEventArgs); } }
+
+        public double AverageTransmissionRate { get { return averageTransmissionRate; } private set { SetProperty(ref averageTransmissionRate, value, averageTransmissionRatePropertyChangedEventArgs); } }
+
         public IoTester()
         {
-            this.IsInitialized = false;
+            this.NumberOfTransfers = 10;
+            this.Status = IoTesterStatus.Initializing;
             this.initializationTask = this.Initialize();
-
-            this.transmissionQueue = new ConcurrentQueue<byte[]>();
         }
 
         private async Task Initialize()
@@ -65,24 +73,33 @@ namespace IoTCoreIoTest.Model
                     SharingMode = SpiSharingMode.Exclusive,
                 };
                 this.device = await SpiDevice.FromIdAsync(deviceId, settings);
-
-                this.communicationCancel = new CancellationTokenSource();
-                this.communicationTask = Task.Run(this.CommunicationTask, this.communicationCancel.Token);
-
             }
-            this.IsInitialized = true;
+            this.Status = IoTesterStatus.Idle;
         }
 
-        private async Task CommunicationTask()
+        public void StartMeasurement()
+        {
+            if (this.Status != IoTesterStatus.Idle) throw new InvalidOperationException();
+
+            this.Status = IoTesterStatus.Running;
+            this.communicationCancel = new CancellationTokenSource();
+            this.communicationTask = Task.Run(() => this.CommunicationTask(this.communicationCancel.Token), this.communicationCancel.Token);
+        }
+        private async Task CommunicationTask(CancellationToken cancellationToken)
         {
             var stopwatch = new Stopwatch();
             byte[] data = new byte[65536];
+
+            var transferMethod = this.Method;
+            double totalSeconds = 0;
+            var numberOfTransfers = this.NumberOfTransfers;
+
             try
             {
-                while (true)
+                for (var count = 0; count < numberOfTransfers; count++)
                 {
-                    this.communicationCancel.Token.ThrowIfCancellationRequested();
-                    var transferMethod = this.Method;
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     stopwatch.Restart();
                     switch (transferMethod)
                     {
@@ -97,18 +114,24 @@ namespace IoTCoreIoTest.Model
                             break;
                     }
                     stopwatch.Stop();
-                    var totalSeconds = stopwatch.Elapsed.TotalSeconds;
-                    this.LastTransmissionRate = totalSeconds > 0 ? data.Length / totalSeconds : 0;
+                    var elapsed = stopwatch.Elapsed.TotalSeconds;
+                    totalSeconds += elapsed;
+                    this.LastTransmissionRate = elapsed > 0 ? data.Length / elapsed : 0;
 
                     await Task.Yield();
                 }
+                this.AverageTransmissionRate = (numberOfTransfers * data.Length) / totalSeconds;
             }
             catch (OperationCanceledException)
             {
             }
+            finally
+            {
+                this.Status = IoTesterStatus.Idle;
+            }
         }
 
-        public async Task StopCommunication()
+        public async Task StopMeasurementAsync()
         {
             this.communicationCancel?.Cancel();
             await this.communicationTask;
@@ -133,12 +156,16 @@ namespace IoTCoreIoTest.Model
 
         public event PropertyChangedEventHandler PropertyChanged;
 
-        private bool isInitialized;
-        private static readonly PropertyChangedEventArgs isInitializedPropertyChangedEventArgs = new PropertyChangedEventArgs(nameof(IsInitialized));
         private double lastTransmissionRate;
         private static readonly PropertyChangedEventArgs lastTransmissionRatePropertyChangedEventArgs = new PropertyChangedEventArgs(nameof(LastTransmissionRate));
         private TransferMethod method;
         private static readonly PropertyChangedEventArgs methodPropertyChangedEventArgs = new PropertyChangedEventArgs(nameof(Method));
+        private int numberOfTransfers;
+        private static readonly PropertyChangedEventArgs numberOfTransfersPropertyChangedEventArgs = new PropertyChangedEventArgs(nameof(NumberOfTransfers));
+        private IoTesterStatus status;
+        private static readonly PropertyChangedEventArgs statusPropertyChangedEventArgs = new PropertyChangedEventArgs(nameof(Status));
+        private double averageTransmissionRate;
+        private static readonly PropertyChangedEventArgs averageTransmissionRatePropertyChangedEventArgs = new PropertyChangedEventArgs(nameof(AverageTransmissionRate));
 
         private void SetProperty<T>(ref T field, T value, PropertyChangedEventArgs ev)
         {
